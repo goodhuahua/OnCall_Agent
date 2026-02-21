@@ -1,5 +1,7 @@
 package org.example.service;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import org.example.config.DocumentChunkConfig;
 import org.example.dto.DocumentChunk;
 import org.slf4j.Logger;
@@ -103,15 +105,15 @@ public class DocumentChunkService {
      */
     private List<DocumentChunk> chunkSection(Section section, int startChunkIndex) {
         List<DocumentChunk> chunks = new ArrayList<>();
-        String content = section.content;
-        String title = section.title;
+        String content = section.getContent();
+        String title = section.getTitle();
 
         // 如果章节内容小于最大尺寸，直接作为一个分片
         if (content.length() <= chunkConfig.getMaxSize()) {
             DocumentChunk chunk = new DocumentChunk(
                 content, 
-                section.startIndex, 
-                section.startIndex + content.length(), 
+                section.getStartIndex(), 
+                section.getStartIndex() + content.length(), 
                 startChunkIndex
             );
             chunk.setTitle(title);
@@ -124,7 +126,7 @@ public class DocumentChunkService {
         List<String> paragraphs = splitByParagraphs(content);
         
         StringBuilder currentChunk = new StringBuilder();
-        int currentStartIndex = section.startIndex;
+        int currentStartIndex = section.getStartIndex();
         int chunkIndex = startChunkIndex;
 
         for (String paragraph : paragraphs) {
@@ -215,15 +217,11 @@ public class DocumentChunkService {
     /**
      * 章节数据类
      */
+    @Getter
+    @AllArgsConstructor
     private static class Section {
-        String title;
-        String content;
-        int startIndex;
-
-        Section(String title, String content, int startIndex) {
-            this.title = title;
-            this.content = content;
-            this.startIndex = startIndex;
-        }
+        private final String title;
+        private final String content;
+        private final int startIndex;
     }
 }

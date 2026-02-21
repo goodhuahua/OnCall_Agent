@@ -56,6 +56,7 @@ public class VectorIndexService {
         result.setStartTime(LocalDateTime.now());
 
         try {
+            // 目录优先级：入参目录 > 配置中的上传目录
             // 使用指定目录或默认上传目录
             String targetPath = (directoryPath != null && !directoryPath.trim().isEmpty()) 
                     ? directoryPath : uploadPath;
@@ -85,6 +86,7 @@ public class VectorIndexService {
             result.setTotalFiles(files.length);
             logger.info("开始索引目录: {}, 找到 {} 个文件", targetPath, files.length);
 
+            // 逐文件处理：单个文件失败不影响其他文件继续索引
             // 遍历并索引每个文件
             for (File file : files) {
                 try {
@@ -136,6 +138,7 @@ public class VectorIndexService {
         logger.info("读取文件: {}, 内容长度: {} 字符", path, content.length());
 
         // 2. 删除该文件的旧数据（如果存在）
+        // 说明：通过 _source 删除旧分片，确保重复索引同一文件时数据不会累积
         deleteExistingData(path.toString());
 
         // 3. 文档分片
@@ -178,6 +181,7 @@ public class VectorIndexService {
             String normalizedPath = path.toString().replace(File.separator, "/");
             
             // 构建删除表达式：metadata["_source"] == "xxx"
+            // 注意：_source 可能包含反斜杠与转义字符，统一为 / 能显著降低表达式匹配失败概率
             String expr = String.format("metadata[\"_source\"] == \"%s\"", normalizedPath);
             
             logger.info("准备删除旧数据，路径: {}, 表达式: {}", normalizedPath, expr);
@@ -190,6 +194,7 @@ public class VectorIndexService {
             );
 
             // 状态码 65535 表示集合已经加载，这不是错误
+            // 因此允许 0（成功）与 65535（已加载）两种状态继续执行
             if (loadResponse.getStatus() != 0 && loadResponse.getStatus() != 65535) {
                 logger.warn("加载 collection 失败: {}", loadResponse.getMessage());
                 return;
@@ -267,6 +272,7 @@ public class VectorIndexService {
             }
 
             // 生成唯一 ID（使用 _source + 分片索引）
+            // 该策略具备“同文件同分片稳定、跨文件可区分”的特性，便于重复索引时覆盖旧数据
             String source = (String) metadata.get("_source");
             String id = UUID.nameUUIDFromBytes((source + "_" + chunkIndex).getBytes()).toString();
 
@@ -283,6 +289,7 @@ public class VectorIndexService {
             fields.add(new InsertParam.Field("vector", Collections.singletonList(vector)));
             
             // metadata 字段（JSON 对象）
+            // Milvus JSON 字段写入 JsonObject，避免字符串化后查询时类型不一致
             com.google.gson.Gson gson = new com.google.gson.Gson();
             com.google.gson.JsonObject metadataJson = gson.toJsonTree(metadata).getAsJsonObject();
             fields.add(new InsertParam.Field("metadata", Collections.singletonList(metadataJson)));
@@ -338,6 +345,7 @@ public class VectorIndexService {
         }
 
         public long getDurationMs() {
+            // 仅在起止时间都存在时计算耗时，避免空指针或负值场景
             if (startTime != null && endTime != null) {
                 return java.time.Duration.between(startTime, endTime).toMillis();
             }
